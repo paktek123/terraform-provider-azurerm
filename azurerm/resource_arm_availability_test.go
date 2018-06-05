@@ -3,6 +3,7 @@ package azurerm
 import (
 	"fmt"
 	"log"
+	"regexp"
 
 	"github.com/Azure/azure-sdk-for-go/services/appinsights/mgmt/2015-05-01/insights"
 	"github.com/hashicorp/terraform/helper/schema"
@@ -13,9 +14,9 @@ import (
 
 func resourceArmAvailabilityTest() *schema.Resource {
 	return &schema.Resource{
-		Create: resourceArmAvailabilityTestCreate,
+		Create: resourceArmAvailabilityTestCreateOrUpdate,
 		Read:   resourceArmAvailabilityTestRead,
-		Update: resourceArmAvailabilityTestUpdate,
+		Update: resourceArmAvailabilityTestCreateOrUpdate,
 		Delete: resourceArmAvailabilityTestDelete,
 		Importer: &schema.ResourceImporter{
 			State: schema.ImportStatePassthrough,
@@ -39,11 +40,11 @@ func resourceArmAvailabilityTest() *schema.Resource {
 			"kind": {
 				Type:             schema.TypeString,
 				Optional:         true,
-				Default:          string(account.Consumption),
+				Default:          string(insights.Ping),
 				DiffSuppressFunc: ignoreCaseDiffSuppressFunc,
 				ValidateFunc: validation.StringInSlice([]string{
 					string(insights.Ping),
-					string(insights.Multistep)
+					string(insights.Multistep),
 				}, true),
 			},
 
@@ -59,15 +60,15 @@ func resourceArmAvailabilityTest() *schema.Resource {
 			},
 
 			"frequency": {
-				Type:         schema.TypeInt,
-				Optional:     true,
-				Default:      300,
+				Type:     schema.TypeInt,
+				Optional: true,
+				Default:  300,
 			},
 
 			"timeout": {
-				Type:         schema.TypeInt,
-				Optional:     true,
-				Default:      30,
+				Type:     schema.TypeInt,
+				Optional: true,
+				Default:  30,
 			},
 
 			"retry_enabled": {
@@ -79,8 +80,7 @@ func resourceArmAvailabilityTest() *schema.Resource {
 			"locations": {
 				Type:     schema.TypeList,
 				Required: true,
-				Elem: locationSchema(),
-				},
+				Elem:     locationSchema(),
 			},
 
 			"configuration": {
@@ -93,7 +93,7 @@ func resourceArmAvailabilityTest() *schema.Resource {
 	}
 }
 
-func resourceArmAvailabilityTestCreate(d *schema.ResourceData, meta interface{}) error {
+func resourceArmAvailabilityTestCreateOrUpdate(d *schema.ResourceData, meta interface{}) error {
 	client := meta.(*ArmClient).availabilityTestsClient
 	ctx := meta.(*ArmClient).StopContext
 
@@ -113,39 +113,39 @@ func resourceArmAvailabilityTestCreate(d *schema.ResourceData, meta interface{})
 	tags := d.Get("tags").(map[string]interface{})
 
 	availabilityTestProperties := insights.WebTest{
-		Kind: insights.WebTestKind(kind)
+		Kind:     insights.WebTestKind(kind),
 		Location: &location,
 		Tags:     expandTags(tags),
 		WebTestProperties: &insights.WebTestProperties{
-			SyntheticMonitorID: name,
-			WebTestName: name,
-			Description: description,
-			Enabled: enabled,
-			Frequency: frequency,
-			Timeout: timeout,
-			WebTestKind: insights.WebTestKind(kind),
-			RetryEnabled: retry_enabled,
-			Locations: 
-			NewTier: account.TierType(tier),
+			SyntheticMonitorID: &name,
+			WebTestName:        &name,
+			Description:        &description,
+			Enabled:            &enabled,
+			Frequency:          &frequency,
+			Timeout:            &timeout,
+			WebTestKind:        &insights.WebTestKind(kind),
+			RetryEnabled:       &retry_enabled,
+			Locations:          expandLocations(locations),
+			Configuration:      &insights.WebTestPropertiesConfiguration.WebTest(configuration),
 		},
 	}
 
-	future, err := client.Create(ctx, resourceGroup, name, dateLakeStore)
+	future, err := client.CreateOrUpdate(ctx, resourceGroup, name, availabilityTestProperties)
 	if err != nil {
-		return fmt.Errorf("Error issuing create request for Data Lake Store %q (Resource Group %q): %+v", name, resourceGroup, err)
+		return fmt.Errorf("Error issuing create request for Web Test %q (Resource Group %q): %+v", name, resourceGroup, err)
 	}
 
 	err = future.WaitForCompletion(ctx, client.Client)
 	if err != nil {
-		return fmt.Errorf("Error creating Data Lake Store %q (Resource Group %q): %+v", name, resourceGroup, err)
+		return fmt.Errorf("Error creating Web Test %q (Resource Group %q): %+v", name, resourceGroup, err)
 	}
 
 	read, err := client.Get(ctx, resourceGroup, name)
 	if err != nil {
-		return fmt.Errorf("Error retrieving Data Lake Store %q (Resource Group %q): %+v", name, resourceGroup, err)
+		return fmt.Errorf("Error retrieving Web Test %q (Resource Group %q): %+v", name, resourceGroup, err)
 	}
 	if read.ID == nil {
-		return fmt.Errorf("Cannot read Data Lake Store %s (resource group %s) ID", name, resourceGroup)
+		return fmt.Errorf("Cannot read Web Test %s (resource group %s) ID", name, resourceGroup)
 	}
 
 	d.SetId(*read.ID)
@@ -153,37 +153,8 @@ func resourceArmAvailabilityTestCreate(d *schema.ResourceData, meta interface{})
 	return resourceArmDateLakeStoreRead(d, meta)
 }
 
-func resourceArmDateLakeStoreUpdate(d *schema.ResourceData, meta interface{}) error {
-	client := meta.(*ArmClient).dataLakeStoreAccountClient
-	ctx := meta.(*ArmClient).StopContext
-
-	name := d.Get("name").(string)
-	resourceGroup := d.Get("resource_group_name").(string)
-	newTags := d.Get("tags").(map[string]interface{})
-	newTier := d.Get("tier").(string)
-
-	props := account.UpdateDataLakeStoreAccountParameters{
-		Tags: expandTags(newTags),
-		UpdateDataLakeStoreAccountProperties: &account.UpdateDataLakeStoreAccountProperties{
-			NewTier: account.TierType(newTier),
-		},
-	}
-
-	future, err := client.Update(ctx, resourceGroup, name, props)
-	if err != nil {
-		return fmt.Errorf("Error issuing update request for Data Lake Store %q (Resource Group %q): %+v", name, resourceGroup, err)
-	}
-
-	err = future.WaitForCompletion(ctx, client.Client)
-	if err != nil {
-		return fmt.Errorf("Error waiting for the update of Data Lake Store %q (Resource Group %q) to commplete: %+v", name, resourceGroup, err)
-	}
-
-	return resourceArmDateLakeStoreRead(d, meta)
-}
-
-func resourceArmDateLakeStoreRead(d *schema.ResourceData, meta interface{}) error {
-	client := meta.(*ArmClient).dataLakeStoreAccountClient
+func resourceArmAvailabilityTestRead(d *schema.ResourceData, meta interface{}) error {
+	client := meta.(*ArmClient).availabilityTestsClient
 	ctx := meta.(*ArmClient).StopContext
 
 	id, err := parseAzureResourceID(d.Id())
@@ -191,16 +162,16 @@ func resourceArmDateLakeStoreRead(d *schema.ResourceData, meta interface{}) erro
 		return err
 	}
 	resourceGroup := id.ResourceGroup
-	name := id.Path["accounts"]
+	name := id.Path["webtests"]
 
 	resp, err := client.Get(ctx, resourceGroup, name)
 	if err != nil {
 		if utils.ResponseWasNotFound(resp.Response) {
-			log.Printf("[WARN] DataLakeStoreAccount '%s' was not found (resource group '%s')", name, resourceGroup)
+			log.Printf("[WARN] WebTest '%s' was not found (resource group '%s')", name, resourceGroup)
 			d.SetId("")
 			return nil
 		}
-		return fmt.Errorf("Error making Read request on Azure Data Lake Store %q (Resource Group %q): %+v", name, resourceGroup, err)
+		return fmt.Errorf("Error making Read request on Web Test %q (Resource Group %q): %+v", name, resourceGroup, err)
 	}
 
 	d.Set("name", name)
@@ -209,8 +180,15 @@ func resourceArmDateLakeStoreRead(d *schema.ResourceData, meta interface{}) erro
 		d.Set("location", azureRMNormalizeLocation(*location))
 	}
 
-	if tier := resp.DataLakeStoreAccountProperties; tier != nil {
-		d.Set("tier", string(tier.CurrentTier))
+	if webTestProperties := resp.WebTestProperties; webTestProperties != nil {
+		d.Set("kind", string(resp.Kind))
+		d.Set("description", resp.WebTestProperties.Description)
+		d.Set("enabled", resp.WebTestProperties.Enabled)
+		d.Set("frequency", resp.WebTestProperties.Frequency)
+		d.Set("timeout", resp.WebTestProperties.Timeout)
+		d.Set("retry_enabled", resp.WebTestProperties.RetryEnabled)
+		d.Set("locations", flattenLocations(resp.WebTestProperties.Locations))
+		d.Set("configuration", resp.WebTestProperties.WebTestPropertiesConfiguration.WebTest)
 	}
 
 	flattenAndSetTags(d, resp.Tags)
@@ -218,8 +196,8 @@ func resourceArmDateLakeStoreRead(d *schema.ResourceData, meta interface{}) erro
 	return nil
 }
 
-func resourceArmDateLakeStoreDelete(d *schema.ResourceData, meta interface{}) error {
-	client := meta.(*ArmClient).dataLakeStoreAccountClient
+func resourceArmAvailabilityTestDelete(d *schema.ResourceData, meta interface{}) error {
+	client := meta.(*ArmClient).availabilityTestsClient
 	ctx := meta.(*ArmClient).StopContext
 
 	id, err := parseAzureResourceID(d.Id())
@@ -228,13 +206,13 @@ func resourceArmDateLakeStoreDelete(d *schema.ResourceData, meta interface{}) er
 	}
 
 	resourceGroup := id.ResourceGroup
-	name := id.Path["accounts"]
+	name := id.Path["webtests"]
 	future, err := client.Delete(ctx, resourceGroup, name)
 	if err != nil {
 		if response.WasNotFound(future.Response()) {
 			return nil
 		}
-		return fmt.Errorf("Error issuing delete request for Data Lake Store %q (Resource Group %q): %+v", name, resourceGroup, err)
+		return fmt.Errorf("Error issuing delete request for Web Test %q (Resource Group %q): %+v", name, resourceGroup, err)
 	}
 
 	err = future.WaitForCompletion(ctx, client.Client)
@@ -242,8 +220,29 @@ func resourceArmDateLakeStoreDelete(d *schema.ResourceData, meta interface{}) er
 		if response.WasNotFound(future.Response()) {
 			return nil
 		}
-		return fmt.Errorf("Error deleting Data Lake Store %q (Resource Group %q): %+v", name, resourceGroup, err)
+		return fmt.Errorf("Error deleting Web Test %q (Resource Group %q): %+v", name, resourceGroup, err)
 	}
 
 	return nil
+}
+
+func expandLocations(input []string) []interface{} {
+	webTestLocations := make([]interface{}, 0)
+
+	for _, location := range input {
+		webTestLocation := insights.WebTestLocation(location)
+		webTestLocations.append(webTestLocation)
+	}
+
+	return webTestLocations
+}
+
+func flattenLocations(input *[]insights.WebTestGeoLocation) []string {
+	webTestLocations := make([]interface{}, 0)
+	for _, location := range input {
+		webTestLocation := string(location)
+		webTestLocations.append(&webTestLocation)
+	}
+
+	return webTestLocations
 }
