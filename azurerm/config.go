@@ -844,7 +844,6 @@ func (c *ArmClient) registerRelayClients(endpoint, subscriptionId string, auth a
 	c.relayNamespacesClient = relayNamespacesClient
 }
 
-
 func (c *ArmClient) registerResourcesClients(endpoint, subscriptionId string, auth autorest.Authorizer) {
 	locksClient := locks.NewManagementLocksClientWithBaseURI(endpoint, subscriptionId)
 	c.configureClient(&locksClient.Client, auth)

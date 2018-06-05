@@ -8,7 +8,6 @@ import (
 	"github.com/Azure/azure-sdk-for-go/services/appinsights/mgmt/2015-05-01/insights"
 	"github.com/hashicorp/terraform/helper/schema"
 	"github.com/hashicorp/terraform/helper/validation"
-	"github.com/terraform-providers/terraform-provider-azurerm/azurerm/helpers/response"
 	"github.com/terraform-providers/terraform-provider-azurerm/azurerm/utils"
 )
 
@@ -80,7 +79,7 @@ func resourceArmAvailabilityTest() *schema.Resource {
 			"locations": {
 				Type:     schema.TypeList,
 				Required: true,
-				Elem:     locationSchema(),
+				Elem:     &schema.Schema{Type: schema.TypeString},
 			},
 
 			"configuration": {
@@ -107,37 +106,36 @@ func resourceArmAvailabilityTestCreateOrUpdate(d *schema.ResourceData, meta inte
 	enabled := d.Get("enabled").(bool)
 	frequency := d.Get("frequency").(int)
 	timeout := d.Get("timeout").(int)
-	retry_enabled := d.Get("retry_enabled").(bool)
+	retryEnabled := d.Get("retry_enabled").(bool)
 	locations := d.Get("locations").([]interface{})
 	configuration := d.Get("configuration").(string)
 	tags := d.Get("tags").(map[string]interface{})
+
+	expandedLocations := expandLocations(locations)
 
 	availabilityTestProperties := insights.WebTest{
 		Kind:     insights.WebTestKind(kind),
 		Location: &location,
 		Tags:     expandTags(tags),
 		WebTestProperties: &insights.WebTestProperties{
-			SyntheticMonitorID: &name,
-			WebTestName:        &name,
-			Description:        &description,
-			Enabled:            &enabled,
-			Frequency:          &frequency,
-			Timeout:            &timeout,
-			WebTestKind:        &insights.WebTestKind(kind),
-			RetryEnabled:       &retry_enabled,
-			Locations:          expandLocations(locations),
-			Configuration:      &insights.WebTestPropertiesConfiguration.WebTest(configuration),
+			SyntheticMonitorID: utils.String(name),
+			WebTestName:        utils.String(name),
+			Description:        utils.String(description),
+			Enabled:            utils.Bool(enabled),
+			Frequency:          utils.Int32(int32(frequency)),
+			Timeout:            utils.Int32(int32(timeout)),
+			WebTestKind:        insights.WebTestKind(kind),
+			RetryEnabled:       utils.Bool(retryEnabled),
+			Locations:          &expandedLocations,
+			Configuration: &insights.WebTestPropertiesConfiguration{
+				WebTest: &configuration,
+			},
 		},
 	}
 
-	future, err := client.CreateOrUpdate(ctx, resourceGroup, name, availabilityTestProperties)
+	_, err := client.CreateOrUpdate(ctx, resourceGroup, name, availabilityTestProperties)
 	if err != nil {
 		return fmt.Errorf("Error issuing create request for Web Test %q (Resource Group %q): %+v", name, resourceGroup, err)
-	}
-
-	err = future.WaitForCompletion(ctx, client.Client)
-	if err != nil {
-		return fmt.Errorf("Error creating Web Test %q (Resource Group %q): %+v", name, resourceGroup, err)
 	}
 
 	read, err := client.Get(ctx, resourceGroup, name)
@@ -188,7 +186,7 @@ func resourceArmAvailabilityTestRead(d *schema.ResourceData, meta interface{}) e
 		d.Set("timeout", resp.WebTestProperties.Timeout)
 		d.Set("retry_enabled", resp.WebTestProperties.RetryEnabled)
 		d.Set("locations", flattenLocations(resp.WebTestProperties.Locations))
-		d.Set("configuration", resp.WebTestProperties.WebTestPropertiesConfiguration.WebTest)
+		d.Set("configuration", resp.WebTestProperties.Configuration.WebTest)
 	}
 
 	flattenAndSetTags(d, resp.Tags)
@@ -207,41 +205,35 @@ func resourceArmAvailabilityTestDelete(d *schema.ResourceData, meta interface{})
 
 	resourceGroup := id.ResourceGroup
 	name := id.Path["webtests"]
-	future, err := client.Delete(ctx, resourceGroup, name)
+	resp, err := client.Delete(ctx, resourceGroup, name)
 	if err != nil {
-		if response.WasNotFound(future.Response()) {
+		if resp.StatusCode == 404 {
 			return nil
 		}
 		return fmt.Errorf("Error issuing delete request for Web Test %q (Resource Group %q): %+v", name, resourceGroup, err)
 	}
 
-	err = future.WaitForCompletion(ctx, client.Client)
-	if err != nil {
-		if response.WasNotFound(future.Response()) {
-			return nil
-		}
-		return fmt.Errorf("Error deleting Web Test %q (Resource Group %q): %+v", name, resourceGroup, err)
-	}
-
 	return nil
 }
 
-func expandLocations(input []string) []interface{} {
-	webTestLocations := make([]interface{}, 0)
+func expandLocations(input []interface{}) []insights.WebTestGeolocation {
+	webTestLocations := make([]insights.WebTestGeolocation, 0)
 
 	for _, location := range input {
-		webTestLocation := insights.WebTestLocation(location)
-		webTestLocations.append(webTestLocation)
+		webTestLocation := insights.WebTestGeolocation{
+			Location: location.(*string),
+		}
+		webTestLocations = append(webTestLocations, webTestLocation)
 	}
 
 	return webTestLocations
 }
 
-func flattenLocations(input *[]insights.WebTestGeoLocation) []string {
+func flattenLocations(input *[]insights.WebTestGeolocation) interface{} {
 	webTestLocations := make([]interface{}, 0)
-	for _, location := range input {
-		webTestLocation := string(location)
-		webTestLocations.append(&webTestLocation)
+	for _, location := range *input {
+		webTestLocation := location.Location
+		webTestLocations = append(webTestLocations, webTestLocation)
 	}
 
 	return webTestLocations

@@ -101,7 +101,7 @@ resource "azurerm_resource_group" "test" {
 }
 
 resource "azurerm_availability_test" "test" {
-  name                = "webtest%s"
+  name                = "webtest%d"
   resource_group_name = "${azurerm_resource_group.test.name}"
   location            = "%s"
   kind				  = "ping"
