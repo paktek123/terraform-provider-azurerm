@@ -18,6 +18,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/services/containerregistry/mgmt/2017-10-01/containerregistry"
 	"github.com/Azure/azure-sdk-for-go/services/containerservice/mgmt/2017-09-30/containerservice"
 	"github.com/Azure/azure-sdk-for-go/services/cosmos-db/mgmt/2015-04-08/documentdb"
+	datalakeanalytics "github.com/Azure/azure-sdk-for-go/services/datalake/analytics/mgmt/2016-11-01/account"
 	"github.com/Azure/azure-sdk-for-go/services/datalake/store/mgmt/2016-11-01/account"
 	"github.com/Azure/azure-sdk-for-go/services/dns/mgmt/2016-04-01/dns"
 	"github.com/Azure/azure-sdk-for-go/services/eventgrid/mgmt/2018-01-01/eventgrid"
@@ -139,8 +140,9 @@ type ArmClient struct {
 	sqlServerAzureADAdministratorsClient sql.ServerAzureADAdministratorsClient
 	sqlVirtualNetworkRulesClient         sql.VirtualNetworkRulesClient
 
-	// Data Lake Store
+	// Data Lake
 	dataLakeStoreAccountClient account.AccountsClient
+	dataLakeAnalyticsAccountClient datalakeanalytics.AccountsClient
 
 	// KeyVault
 	keyVaultClient           keyvault.VaultsClient
@@ -379,6 +381,7 @@ func getArmClient(c *authentication.Config) (*ArmClient, error) {
 	client.registerCosmosDBClients(endpoint, c.SubscriptionID, auth, sender)
 	client.registerDatabases(endpoint, c.SubscriptionID, auth, sender)
 	client.registerDataLakeStoreAccountClients(endpoint, c.SubscriptionID, auth, sender)
+	client.registerDataLakeAnalyticsAccountClients(endpoint, c.SubscriptionID, auth, sender)
 	client.registerDeviceClients(endpoint, c.SubscriptionID, auth, sender)
 	client.registerDNSClients(endpoint, c.SubscriptionID, auth, sender)
 	client.registerEventGridClients(endpoint, c.SubscriptionID, auth, sender)
@@ -636,6 +639,12 @@ func (c *ArmClient) registerDatabases(endpoint, subscriptionId string, auth auto
 	sqlVNRClient := sql.NewVirtualNetworkRulesClientWithBaseURI(endpoint, subscriptionId)
 	c.configureClient(&sqlVNRClient.Client, auth)
 	c.sqlVirtualNetworkRulesClient = sqlVNRClient
+}
+
+func (c *ArmClient) registerDataLakeAnalyticsAccountClients(endpoint, subscriptionId string, auth autorest.Authorizer, sender autorest.Sender) {
+	dataLakeAnalyticsAccountClient := datalakeanalytics.NewAccountsClientWithBaseURI(endpoint, subscriptionId)
+	c.configureClient(&dataLakeAnalyticsAccountClient.Client, auth)
+	c.dataLakeAnalyticsAccountClient = dataLakeAnalyticsAccountClient
 }
 
 func (c *ArmClient) registerDataLakeStoreAccountClients(endpoint, subscriptionId string, auth autorest.Authorizer, sender autorest.Sender) {
