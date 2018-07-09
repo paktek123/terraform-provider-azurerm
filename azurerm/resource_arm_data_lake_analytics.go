@@ -12,7 +12,7 @@ import (
 	"github.com/terraform-providers/terraform-provider-azurerm/azurerm/utils"
 )
 
-func resourceArmDataLakeStore() *schema.Resource {
+func resourceArmDataLakeAnalytics() *schema.Resource {
 	return &schema.Resource{
 		Create: resourceArmDateLakeStoreCreate,
 		Read:   resourceArmDateLakeStoreRead,
@@ -157,9 +157,6 @@ func resourceArmDateLakeAnalyticsCreate(d *schema.ResourceData, meta interface{}
 	location := azureRMNormalizeLocation(d.Get("location").(string))
 	resource_group := d.Get("resource_group_name").(string)
 	default_data_store_account_name := d.Get("default_data_store_account_name").(string)
-	data_lake_store_accounts := d.Get("data_lake_store_accounts").([]interface{})
-	storage_accounts := d.Get("storage_accounts").([]interface{})
-	firewall_rules := d.Get("firewall_rules").([]interface{})
 	firewall_enabled := d.Get("firewall_enabled").(bool)
 	firewall_allow_azure_ips := d.Get("firewall_allow_azure_ips").(bool)
 	max_job_count := d.Get("max_job_count").(int)
@@ -174,12 +171,12 @@ func resourceArmDateLakeAnalyticsCreate(d *schema.ResourceData, meta interface{}
 		Location: &location,
 		Tags:     expandTags(tags),
 		CreateDataLakeAnalyticsAccountProperties: &account.CreateDataLakeAnalyticsAccountProperties{
-			DefaultDataLakeStoreAccount: utils.String(name),
-			DataLakeStoreAccounts: expandDataLakeStoreAccounts(data_lake_store_accounts),
-			StorageAccounts: expandStorageAccounts(storage_accounts),
-			FirewallRules: expandFirewallRules(firewall_rules),
-			FirewallState: getFirewallState(firewall_enabled),
-			FirewallAllowAzureIps: getAllowIpState(firewall_allow_azure_ips),
+			DefaultDataLakeStoreAccount: utils.String(default_data_store_account_name),
+			DataLakeStoreAccounts: expandAddDataLakeStoreAccounts(d),
+			StorageAccounts: expandAddStorageAccounts(d),
+			FirewallRules: expandCreateFirewallRules(d),
+			FirewallState: expandFirewallState(firewall_enabled),
+			FirewallAllowAzureIps: expandAllowIpState(firewall_allow_azure_ips),
 			NewTier: account.TierType(tier),
 			MaxJobCount: utils.Int32(int32(max_job_count)),
 			MaxDegreeOfParallelism: utils.Int32(int32(max_degree_of_parrallelism)),
@@ -217,12 +214,7 @@ func resourceArmDateLakeAnalyticsUpdate(d *schema.ResourceData, meta interface{}
 	ctx := meta.(*ArmClient).StopContext
 
 	name := d.Get("name").(string)
-	location := azureRMNormalizeLocation(d.Get("location").(string))
 	resource_group := d.Get("resource_group_name").(string)
-	default_data_store_account_name := d.Get("default_data_store_account_name").(string)
-	data_lake_store_accounts := d.Get("data_lake_store_accounts").([]interface{})
-	storage_accounts := d.Get("storage_accounts").([]interface{})
-	firewall_rules := d.Get("firewall_rules").([]interface{})
 	firewall_enabled := d.Get("firewall_enabled").(bool)
 	firewall_allow_azure_ips := d.Get("firewall_allow_azure_ips").(bool)
 	max_job_count := d.Get("max_job_count").(int)
@@ -233,14 +225,14 @@ func resourceArmDateLakeAnalyticsUpdate(d *schema.ResourceData, meta interface{}
 	tier := d.Get("tier").(string)
 	newTags := d.Get("tags").(map[string]interface{})
 
-	props := account.UpdateDataLakeAnalyticsAccountParameters{
+	props := &account.UpdateDataLakeAnalyticsAccountParameters{
 		Tags: expandTags(newTags),
 		UpdateDataLakeAnalyticsAccountProperties: &account.UpdateDataLakeAnalyticsAccountProperties{
-			DataLakeStoreAccounts: expandDataLakeStoreAccounts(data_lake_store_accounts),
-			StorageAccounts: expandStorageAccounts(storage_accounts),
-			FirewallRules: expandFirewallRules(firewall_rules),
-			FirewallState: getFirewallState(firewall_enabled),
-			FirewallAllowAzureIps: getAllowIpState(firewall_allow_azure_ips),
+			DataLakeStoreAccounts: expandUpdateDataLakeStoreAccounts(d),
+			StorageAccounts: expandUpdateStorageAccounts(d),
+			FirewallRules: expandUpdateFirewallRules(d),
+			FirewallState: expandFirewallState(firewall_enabled),
+			FirewallAllowAzureIps: expandAllowIpState(firewall_allow_azure_ips),
 			NewTier: account.TierType(tier),
 			MaxJobCount: utils.Int32(int32(max_job_count)),
 			MaxDegreeOfParallelism: utils.Int32(int32(max_degree_of_parrallelism)),
@@ -344,3 +336,173 @@ func resourceArmDateLakeAnalyticsDelete(d *schema.ResourceData, meta interface{}
 
 	return nil
 }
+
+func expandAddDataLakeStoreAccounts(d *schema.ResourceData) *[]account.AddDataLakeStoreWithAccountParameters {
+	dataLakeStoreAccounts := d.Get("data_lake_store_accounts").([]string)
+	addDataLakeStoreWithAccountParameters := make([]account.AddDataLakeStoreWithAccountParameters, 0)
+
+	for _, name := range dataLakeStoreAccounts {
+		addDataLakeStoreWithAccountParameters = append(addDataLakeStoreWithAccountParameters, account.AddDataLakeStoreWithAccountParameters{
+			Name: &name,
+		})
+	}
+
+	return &addDataLakeStoreWithAccountParameters
+}
+
+func expandUpdateDataLakeStoreAccounts(d *schema.ResourceData) *[]account.UpdateDataLakeStoreWithAccountParameters {
+	dataLakeStoreAccounts := d.Get("data_lake_store_accounts").([]string)
+	updateDataLakeStoreWithAccountParameters := make([]account.UpdateDataLakeStoreWithAccountParameters, 0)
+
+	for _, name := range dataLakeStoreAccounts {
+		updateDataLakeStoreWithAccountParameters = append(updateDataLakeStoreWithAccountParameters, account.UpdateDataLakeStoreWithAccountParameters{
+			Name: &name,
+		})
+	}
+
+	return &updateDataLakeStoreWithAccountParameters
+}
+
+func flattenDataLakeStoreAccounts(input *[]account.AddDataLakeStoreWithAccountParameters) interface{} {
+	results := make([]string, 0)
+
+	if input != nil {
+		for _, v := range *input {
+			results = append(results, *v.Name)
+		}
+	}
+
+	return results
+}
+
+func expandAddStorageAccounts(d *schema.ResourceData) *[]account.AddStorageAccountWithAccountParameters {
+	storageAccounts := d.Get("storage_accounts").([]string)
+	addStorageAccountWithAccountParameters := make([]account.AddStorageAccountWithAccountParameters, 0)
+
+	for _, name := range storageAccounts {
+		addStorageAccountWithAccountParameters = append(addStorageAccountWithAccountParameters, account.AddStorageAccountWithAccountParameters{
+			Name: &name,
+		})
+	}
+
+	return &addStorageAccountWithAccountParameters
+}
+
+func expandUpdateStorageAccounts(d *schema.ResourceData) *[]account.UpdateStorageAccountWithAccountParameters {
+	storageAccounts := d.Get("storage_accounts").([]string)
+	updateStorageAccountWithAccountParameters := make([]account.UpdateStorageAccountWithAccountParameters, 0)
+
+	for _, name := range storageAccounts {
+		updateStorageAccountWithAccountParameters = append(updateStorageAccountWithAccountParameters, account.UpdateStorageAccountWithAccountParameters{
+			Name: &name,
+		})
+	}
+
+	return &updateStorageAccountWithAccountParameters
+}
+
+func flattenStorageAccounts(input *[]account.AddStorageAccountWithAccountParameters) interface{} {
+	results := make([]string, 0)
+
+	if input != nil {
+		for _, v := range *input {
+			results = append(results, *v.Name)
+		}
+	}
+
+	return results
+}
+
+func expandCreateFirewallRules(d *schema.ResourceData) *[]account.CreateFirewallRuleWithAccountParameters {
+	firewallRules := d.Get("firewall_rule").([]interface{})
+	createFirewallRuleWithAccountParameters := make([]account.CreateFirewallRuleWithAccountParameters, 0)
+
+	for _, rule := range firewallRules {
+		firewall_rule := rule.(map[string]interface{})
+
+		name := firewall_rule["name"].(string)
+		start_ip_address := firewall_rule["start_ip_address"].(string)
+		end_ip_address := firewall_rule["end_ip_address"].(string)
+
+		createFirewallRuleWithAccountParameters = append(createFirewallRuleWithAccountParameters, account.CreateFirewallRuleWithAccountParameters{
+			Name: &name,
+			CreateOrUpdateFirewallRuleProperties: &account.CreateOrUpdateFirewallRuleProperties{
+				StartIPAddress: &start_ip_address,
+				EndIPAddress: &end_ip_address,
+			},
+		})
+	}
+
+	return &createFirewallRuleWithAccountParameters
+}
+
+func expandUpdateFirewallRules(d *schema.ResourceData) *[]account.UpdateFirewallRuleWithAccountParameters {
+	firewallRules := d.Get("firewall_rule").([]interface{})
+	updateFirewallRuleWithAccountParameters := make([]account.UpdateFirewallRuleWithAccountParameters, 0)
+
+	for _, rule := range firewallRules {
+		firewall_rule := rule.(map[string]interface{})
+
+		name := firewall_rule["name"].(string)
+		start_ip_address := firewall_rule["start_ip_address"].(string)
+		end_ip_address := firewall_rule["end_ip_address"].(string)
+
+		updateFirewallRuleWithAccountParameters = append(updateFirewallRuleWithAccountParameters, account.UpdateFirewallRuleWithAccountParameters{
+			Name: &name,
+			UpdateFirewallRuleProperties: &account.UpdateFirewallRuleProperties{
+				StartIPAddress: &start_ip_address,
+				EndIPAddress: &end_ip_address,
+			},
+		})
+	}
+
+	return &updateFirewallRuleWithAccountParameters
+}
+
+func flattenFirewallRules(input *[]account.FirewallRule) interface{} {
+	results := make([]interface{}, 0)
+
+	if input != nil {
+		for _, v := range *input {
+			result := make(map[string]interface{}, 0)
+			result["name"] = v.Name
+			result["start_ip_address"] = *v.StartIPAddress
+			result["end_ip_address"] = *v.EndIPAddress
+			results = append(results, result)
+		}
+	}
+
+	return results
+}
+
+func expandFirewallState(input bool) account.FirewallState {
+	if input == true {
+		return account.FirewallStateEnabled
+	}
+
+	return account.FirewallStateDisabled
+}
+
+func expandAllowIpState(input bool) account.FirewallAllowAzureIpsState {
+	if input == true {
+		return account.Enabled
+	}
+
+	return account.Disabled
+}
+
+func getFirewallState(input account.FirewallState) bool {
+	if input == account.FirewallStateEnabled {
+		return true
+	} 
+
+	return false
+} 
+
+func getAllowIpState(input account.FirewallAllowAzureIpsState) bool {
+	if input == account.Enabled {
+		return true
+	} 
+
+	return false
+} 

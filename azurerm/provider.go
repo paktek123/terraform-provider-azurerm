@@ -85,7 +85,7 @@ func Provider() terraform.ResourceProvider {
 			"azurerm_cdn_profile":                           dataSourceArmCdnProfile(),
 			"azurerm_client_config":                         dataSourceArmClientConfig(),
 			"azurerm_cosmosdb_account":                      dataSourceArmCosmosDBAccount(),
-			"azurerm_data_lake_analytics":                   dataSourceArmDataLakeAnalyticsAccount(),
+			//"azurerm_data_lake_analytics":                   dataSourceArmDataLakeAnalyticsAccount(),
 			"azurerm_data_lake_store":                       dataSourceArmDataLakeStoreAccount(),
 			"azurerm_dns_zone":                              dataSourceArmDnsZone(),
 			"azurerm_eventhub_namespace":                    dataSourceEventHubNamespace(),
