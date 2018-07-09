@@ -19,7 +19,7 @@ func TestAccAzureRMDataLakeAnalytics_basic(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		PreCheck:     func() { testAccPreCheck(t) },
 		Providers:    testAccProviders,
-		CheckDestroy: testCheckAzureRMDataLakeStoreDestroy,
+		CheckDestroy: testCheckAzureRMDataLakeAnalyticsDestroy,
 		Steps: []resource.TestStep{
 			{
 				Config: config,
@@ -130,7 +130,7 @@ func testCheckAzureRMDataLakeAnalyticsExists(name string) resource.TestCheckFunc
 	}
 }
 
-func testCheckAzureRMDataLakeStoreDestroy(s *terraform.State) error {
+func testCheckAzureRMDataLakeAnalyticsDestroy(s *terraform.State) error {
 	conn := testAccProvider.Meta().(*ArmClient).dataLakeAnalyticsAccountClient
 	ctx := testAccProvider.Meta().(*ArmClient).StopContext
 

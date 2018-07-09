@@ -48,7 +48,7 @@ func resourceArmDataLakeAnalytics() *schema.Resource {
 
 			"data_lake_store_accounts": {
 				Type:     schema.TypeList,
-				Required: false,
+				Required: true,
 				Elem: &schema.Schema{
 					Type: schema.TypeString,
 					ValidateFunc: validation.StringMatch(
@@ -60,7 +60,7 @@ func resourceArmDataLakeAnalytics() *schema.Resource {
 
 			"storage_accounts": {
 				Type:     schema.TypeList,
-				Required: false,
+				Optional: true,
 				Elem: &schema.Schema{
 					Type: schema.TypeString,
 					ValidateFunc: validation.StringMatch(
