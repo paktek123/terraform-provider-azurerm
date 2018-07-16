@@ -24,7 +24,7 @@ func TestAccAzureRMDataLakeAnalytics_basic(t *testing.T) {
 			{
 				Config: config,
 				Check: resource.ComposeTestCheckFunc(
-					testCheckAzureRMDataLakeStoreExists(resourceName),
+					testCheckAzureRMDataLakeAnalyticsExists(resourceName),
 					resource.TestCheckResourceAttr(resourceName, "tier", "Consumption"),
 				),
 			},
@@ -175,7 +175,7 @@ resource "azurerm_data_lake_analytics" "test" {
   name                = "unlikely23exst2acct%s"
   resource_group_name = "${azurerm_resource_group.test.name}"
   location            = "%s"
-  default_data_lake_account_name = "${azurerm_data_lake_store.test.name}"
+  default_data_lake_store_account_name = "${azurerm_data_lake_store.test.name}"
   data_lake_store_accounts = ["${azurerm_data_lake_store.test.name}"]
 }
 `, rInt, location, rs, location, rs, location)
