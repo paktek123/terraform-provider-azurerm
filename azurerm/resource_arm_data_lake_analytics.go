@@ -291,9 +291,6 @@ func resourceArmDateLakeAnalyticsRead(d *schema.ResourceData, meta interface{}) 
 	if datalake_analytics_account_properties := resp.DataLakeAnalyticsAccountProperties; datalake_analytics_account_properties != nil {
 		d.Set("default_data_lake_store_account_name", datalake_analytics_account_properties.DefaultDataLakeStoreAccount)
 		d.Set("data_lake_store_accounts", flattenReadDataLakeStoreAccounts(datalake_analytics_account_properties.DataLakeStoreAccounts))
-
-		spew.Dump(flattenReadDataLakeStoreAccounts(datalake_analytics_account_properties.DataLakeStoreAccounts))
-
 		d.Set("storage_accounts", datalake_analytics_account_properties.StorageAccounts)
 
 		firewall_rules := flattenFirewallRules(datalake_analytics_account_properties.FirewallRules)
