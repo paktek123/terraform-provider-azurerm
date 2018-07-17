@@ -37,22 +37,23 @@ func TestAccAzureRMDataLakeAnalytics_basic(t *testing.T) {
 	})
 }
 
-/*func TestAccAzureRMDataLakeStore_tier(t *testing.T) {
-	resourceName := "azurerm_data_lake_store.test"
+func TestAccAzureRMDataLakeAnalytics_multipleADLS(t *testing.T) {
+	resourceName := "azurerm_data_lake_analytics.test"
 	ri := acctest.RandInt()
-	rs := acctest.RandString(4)
-	config := testAccAzureRMDataLakeStore_tier(ri, rs, testLocation())
+	rsA := acctest.RandString(4)
+	rsB := acctest.RandString(4)
+	config := testAccAzureRMDataLakeAnalytics_multipleADLS(ri, rsA, rsB, testLocation())
 
 	resource.Test(t, resource.TestCase{
 		PreCheck:     func() { testAccPreCheck(t) },
 		Providers:    testAccProviders,
-		CheckDestroy: testCheckAzureRMDataLakeStoreDestroy,
+		CheckDestroy: testCheckAzureRMDataLakeAnalyticsDestroy,
 		Steps: []resource.TestStep{
 			{
 				Config: config,
 				Check: resource.ComposeTestCheckFunc(
-					testCheckAzureRMDataLakeStoreExists(resourceName),
-					resource.TestCheckResourceAttr(resourceName, "tier", "Commitment_1TB"),
+					testCheckAzureRMDataLakeAnalyticsExists(resourceName),
+					resource.TestCheckResourceAttr(resourceName, "tier", "Consumption"),
 				),
 			},
 			{
@@ -64,31 +65,22 @@ func TestAccAzureRMDataLakeAnalytics_basic(t *testing.T) {
 	})
 }
 
-func TestAccAzureRMDataLakeStore_withTags(t *testing.T) {
-	resourceName := "azurerm_data_lake_store.test"
+func TestAccAzureRMDataLakeAnalytics_withStorageAccount(t *testing.T) {
+	resourceName := "azurerm_data_lake_analytics.test"
 	ri := acctest.RandInt()
 	rs := acctest.RandString(4)
-	location := testLocation()
-	preConfig := testAccAzureRMDataLakeStore_withTags(ri, rs, location)
-	postConfig := testAccAzureRMDataLakeStore_withTagsUpdate(ri, rs, location)
+	config := testAccAzureRMDataLakeAnalytics_withStorageAccount(ri, rs, testLocation())
 
 	resource.Test(t, resource.TestCase{
 		PreCheck:     func() { testAccPreCheck(t) },
 		Providers:    testAccProviders,
-		CheckDestroy: testCheckAzureRMDataLakeStoreDestroy,
+		CheckDestroy: testCheckAzureRMDataLakeAnalyticsDestroy,
 		Steps: []resource.TestStep{
 			{
-				Config: preConfig,
+				Config: config,
 				Check: resource.ComposeTestCheckFunc(
-					testCheckAzureRMDataLakeStoreExists(resourceName),
-					resource.TestCheckResourceAttr(resourceName, "tags.%", "2"),
-				),
-			},
-			{
-				Config: postConfig,
-				Check: resource.ComposeTestCheckFunc(
-					testCheckAzureRMDataLakeStoreExists(resourceName),
-					resource.TestCheckResourceAttr(resourceName, "tags.%", "1"),
+					testCheckAzureRMDataLakeAnalyticsExists(resourceName),
+					resource.TestCheckResourceAttr(resourceName, "tier", "Consumption"),
 				),
 			},
 			{
@@ -98,7 +90,7 @@ func TestAccAzureRMDataLakeStore_withTags(t *testing.T) {
 			},
 		},
 	})
-}*/
+}
 
 func testCheckAzureRMDataLakeAnalyticsExists(name string) resource.TestCheckFunc {
 	return func(s *terraform.State) error {
@@ -168,7 +160,6 @@ resource "azurerm_data_lake_store" "test" {
   name                = "unlikely23exst2acct%s"
   resource_group_name = "${azurerm_resource_group.test.name}"
   location            = "%s"
-  
 }
 
 resource "azurerm_data_lake_analytics" "test" {
@@ -181,7 +172,36 @@ resource "azurerm_data_lake_analytics" "test" {
 `, rInt, location, rs, location, rs, location)
 }
 
-/*func testAccAzureRMDataLakeStore_tier(rInt int, rs string, location string) string {
+func testAccAzureRMDataLakeAnalytics_multipleADLS(rInt int, rsA string, rsB string, location string) string {
+	return fmt.Sprintf(`
+resource "azurerm_resource_group" "test" {
+  name     = "acctestRG-%d"
+  location = "%s"
+}
+
+resource "azurerm_data_lake_store" "testA" {
+  name                = "unlikely23exst2acct%s"
+  resource_group_name = "${azurerm_resource_group.test.name}"
+  location            = "%s"
+}
+
+resource "azurerm_data_lake_store" "testB" {
+  name                = "unlikely23exst2acct%s"
+  resource_group_name = "${azurerm_resource_group.test.name}"
+  location            = "%s"
+}
+
+resource "azurerm_data_lake_analytics" "test" {
+  name                = "unlikely23exst2acct%s"
+  resource_group_name = "${azurerm_resource_group.test.name}"
+  location            = "%s"
+  default_data_lake_store_account_name = "${azurerm_data_lake_store.testA.name}"
+  data_lake_store_accounts = ["${azurerm_data_lake_store.testA.name}", "${azurerm_data_lake_store.testB.name}"]
+}
+`, rInt, location, rsA, location, rsB, location, rsA, location)
+}
+
+func testAccAzureRMDataLakeAnalytics_withStorageAccount(rInt int, rs string, location string) string {
 	return fmt.Sprintf(`
 resource "azurerm_resource_group" "test" {
   name     = "acctestRG-%d"
@@ -192,46 +212,23 @@ resource "azurerm_data_lake_store" "test" {
   name                = "unlikely23exst2acct%s"
   resource_group_name = "${azurerm_resource_group.test.name}"
   location            = "%s"
-  tier                = "Commitment_1TB"
-}
-`, rInt, location, rs, location)
 }
 
-func testAccAzureRMDataLakeStore_withTags(rInt int, rs string, location string) string {
-	return fmt.Sprintf(`
-resource "azurerm_resource_group" "test" {
-  name     = "acctestRG-%d"
-  location = "%s"
+resource "azurerm_storage_account" "test" {
+  name                     = "unlikely23exst2acct%s"
+  resource_group_name      = "${azurerm_resource_group.test.name}"
+  location                 = "%s"
+  account_tier             = "Standard"
+  account_replication_type = "LRS"
 }
 
-resource "azurerm_data_lake_store" "test" {
+resource "azurerm_data_lake_analytics" "test" {
   name                = "unlikely23exst2acct%s"
   resource_group_name = "${azurerm_resource_group.test.name}"
   location            = "%s"
-  
-  tags {
-    environment = "Production"
-    cost_center = "MSFT"
-  }
+  default_data_lake_store_account_name = "${azurerm_data_lake_store.test.name}"
+  data_lake_store_accounts = ["${azurerm_data_lake_store.test.name}"]
+  storage_accounts = ["${azurerm_storage_account.test.name}"]
 }
-`, rInt, location, rs, location)
+`, rInt, location, rs, location, rs, location, rs, location)
 }
-
-func testAccAzureRMDataLakeStore_withTagsUpdate(rInt int, rs string, location string) string {
-	return fmt.Sprintf(`
-resource "azurerm_resource_group" "test" {
-  name     = "acctestRG-%d"
-  location = "%s"
-}
-
-resource "azurerm_data_lake_store" "test" {
-  name                = "unlikely23exst2acct%s"
-  resource_group_name = "${azurerm_resource_group.test.name}"
-  location            = "%s"
-  
-  tags {
-    environment = "staging"
-  }
-}
-`, rInt, location, rs, location)
-}*/
