@@ -58,15 +58,21 @@ func resourceArmDataLakeAnalytics() *schema.Resource {
 				},
 			},
 
-			"storage_accounts": {
+			"storage_account": {
 				Type:     schema.TypeList,
 				Optional: true,
-				Elem: &schema.Schema{
-					Type: schema.TypeString,
-					ValidateFunc: validation.StringMatch(
-						regexp.MustCompile(`\A([a-z0-9]{3,24})\z`),
-						"Name can only consist of lowercase letters and numbers, and must be between 3 and 24 characters long",
-					),
+				Elem: &schema.Resource{
+					Schema: map[string]*schema.Schema{
+						"name": {
+							Type: schema.TypeString,
+							Optional: true,
+						},
+						"access_key": {
+							Type: schema.TypeString,
+							Sensitive: true,
+							Optional: true,
+						},
+					},
 				},
 			},
 
@@ -290,7 +296,11 @@ func resourceArmDateLakeAnalyticsRead(d *schema.ResourceData, meta interface{}) 
 	if datalake_analytics_account_properties := resp.DataLakeAnalyticsAccountProperties; datalake_analytics_account_properties != nil {
 		d.Set("default_data_lake_store_account_name", datalake_analytics_account_properties.DefaultDataLakeStoreAccount)
 		d.Set("data_lake_store_accounts", flattenReadDataLakeStoreAccounts(datalake_analytics_account_properties.DataLakeStoreAccounts))
-		d.Set("storage_accounts", datalake_analytics_account_properties.StorageAccounts)
+
+		storage_accounts := flattenStorageAccounts(datalake_analytics_account_properties.StorageAccounts)
+		if err := d.Set("storage_account", storage_accounts); err != nil {
+			return fmt.Errorf("Error flattening `storage_account`: %s", err)
+		}
 
 		firewall_rules := flattenFirewallRules(datalake_analytics_account_properties.FirewallRules)
 		if err := d.Set("firewall_rule", firewall_rules); err != nil {
@@ -397,14 +407,20 @@ func flattenReadDataLakeStoreAccounts(input *[]account.DataLakeStoreAccountInfor
 }
 
 func expandAddStorageAccounts(d *schema.ResourceData) *[]account.AddStorageAccountWithAccountParameters {
-	storageAccounts := d.Get("storage_accounts").([]interface{})
+	storageAccounts := d.Get("storage_account").([]interface{})
 	addStorageAccountWithAccountParameters := make([]account.AddStorageAccountWithAccountParameters, 0)
 
-	for _, name := range storageAccounts {
-		account_name := name.(string)
+	for _, storageAccount := range storageAccounts {
+		storage_account := storageAccount.(map[string]interface{})
+
+		name := storage_account["name"].(string)
+		access_key := storage_account["access_key"].(string)
 
 		addStorageAccountWithAccountParameters = append(addStorageAccountWithAccountParameters, account.AddStorageAccountWithAccountParameters{
-			Name: &account_name,
+			Name: &name,
+			AddStorageAccountProperties: &account.AddStorageAccountProperties{
+				AccessKey: &access_key,
+			},
 		})
 	}
 
@@ -412,26 +428,34 @@ func expandAddStorageAccounts(d *schema.ResourceData) *[]account.AddStorageAccou
 }
 
 func expandUpdateStorageAccounts(d *schema.ResourceData) *[]account.UpdateStorageAccountWithAccountParameters {
-	storageAccounts := d.Get("storage_accounts").([]interface{})
+	storageAccounts := d.Get("storage_account").([]interface{})
 	updateStorageAccountWithAccountParameters := make([]account.UpdateStorageAccountWithAccountParameters, 0)
 
-	for _, name := range storageAccounts {
-		account_name := name.(string)
+	for _, storageAccount := range storageAccounts {
+		storage_account := storageAccount.(map[string]interface{})
+
+		name := storage_account["name"].(string)
+		access_key := storage_account["access_key"].(string)
 
 		updateStorageAccountWithAccountParameters = append(updateStorageAccountWithAccountParameters, account.UpdateStorageAccountWithAccountParameters{
-			Name: &account_name,
+			Name: &name,
+			UpdateStorageAccountProperties: &account.UpdateStorageAccountProperties{
+				AccessKey: &access_key,
+			},
 		})
 	}
 
 	return &updateStorageAccountWithAccountParameters
 }
 
-func flattenStorageAccounts(input *[]account.AddStorageAccountWithAccountParameters) interface{} {
-	results := make([]string, 0)
+func flattenStorageAccounts(input *[]account.StorageAccountInformation) interface{} {
+	results := make([]interface{}, 0)
 
 	if input != nil {
 		for _, v := range *input {
-			results = append(results, *v.Name)
+			result := make(map[string]interface{}, 0)
+			result["name"] = *v.Name
+			results = append(results, result)
 		}
 	}
 
@@ -464,25 +488,22 @@ func expandCreateFirewallRules(d *schema.ResourceData) *[]account.CreateFirewall
 func expandUpdateFirewallRules(d *schema.ResourceData) *[]account.UpdateFirewallRuleWithAccountParameters {
 	
 	updateFirewallRuleWithAccountParameters := make([]account.UpdateFirewallRuleWithAccountParameters, 0)
-
-	if d.HasChange("firewall_rule") {
-		firewallRules := d.Get("firewall_rule").([]interface{})
-
-		for _, rule := range firewallRules {
-			firewall_rule := rule.(map[string]interface{})
 	
-			name := firewall_rule["name"].(string)
-			start_ip_address := firewall_rule["start_ip_address"].(string)
-			end_ip_address := firewall_rule["end_ip_address"].(string)
-	
-			updateFirewallRuleWithAccountParameters = append(updateFirewallRuleWithAccountParameters, account.UpdateFirewallRuleWithAccountParameters{
-				Name: &name,
-				UpdateFirewallRuleProperties: &account.UpdateFirewallRuleProperties{
-					StartIPAddress: &start_ip_address,
-					EndIPAddress: &end_ip_address,
-				},
-			})
-		}
+	firewallRules := d.Get("firewall_rule").([]interface{})
+	for _, rule := range firewallRules {
+		firewall_rule := rule.(map[string]interface{})
+
+		name := firewall_rule["name"].(string)
+		start_ip_address := firewall_rule["start_ip_address"].(string)
+		end_ip_address := firewall_rule["end_ip_address"].(string)
+
+		updateFirewallRuleWithAccountParameters = append(updateFirewallRuleWithAccountParameters, account.UpdateFirewallRuleWithAccountParameters{
+			Name: &name,
+			UpdateFirewallRuleProperties: &account.UpdateFirewallRuleProperties{
+				StartIPAddress: &start_ip_address,
+				EndIPAddress: &end_ip_address,
+			},
+		})
 	}
 
 	return &updateFirewallRuleWithAccountParameters

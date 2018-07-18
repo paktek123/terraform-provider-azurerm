@@ -228,7 +228,11 @@ resource "azurerm_data_lake_analytics" "test" {
   location            = "%s"
   default_data_lake_store_account_name = "${azurerm_data_lake_store.test.name}"
   data_lake_store_accounts = ["${azurerm_data_lake_store.test.name}"]
-  storage_accounts = ["${azurerm_storage_account.test.name}"]
+
+  storage_account {
+  	name = "${azurerm_storage_account.test.name}"
+  	access_key = "${azurerm_storage_account.test.primary_access_key}"
+  }
 }
 `, rInt, location, rs, location, rs, location, rs, location)
 }
