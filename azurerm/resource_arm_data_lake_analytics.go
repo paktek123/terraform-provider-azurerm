@@ -10,6 +10,7 @@ import (
 	"github.com/hashicorp/terraform/helper/validation"
 	"github.com/terraform-providers/terraform-provider-azurerm/azurerm/helpers/response"
 	"github.com/terraform-providers/terraform-provider-azurerm/azurerm/utils"
+	//"github.com/davecgh/go-spew/spew"
 )
 
 func resourceArmDataLakeAnalytics() *schema.Resource {
@@ -58,24 +59,6 @@ func resourceArmDataLakeAnalytics() *schema.Resource {
 				},
 			},
 
-			"storage_account": {
-				Type:     schema.TypeList,
-				Optional: true,
-				Elem: &schema.Resource{
-					Schema: map[string]*schema.Schema{
-						"name": {
-							Type: schema.TypeString,
-							Optional: true,
-						},
-						"access_key": {
-							Type: schema.TypeString,
-							Sensitive: true,
-							Optional: true,
-						},
-					},
-				},
-			},
-
 			"firewall_enabled": {
 				Type:     schema.TypeBool,
 				Optional: true,
@@ -93,13 +76,20 @@ func resourceArmDataLakeAnalytics() *schema.Resource {
 				Optional: true,
 				Elem: &schema.Resource{
 					Schema: map[string]*schema.Schema{
+						"name": {
+							Type:     schema.TypeString,
+							Optional: true,
+							//Computed: true,
+						},
 						"start_ip_address": {
 							Type:     schema.TypeString,
-							Computed: true,
+							Optional: true,
+							//Computed: true,
 						},
 						"end_ip_address": {
 							Type:     schema.TypeString,
-							Computed: true,
+							Optional: true,
+							//Computed: true,
 						},
 					},
 				},
@@ -184,7 +174,6 @@ func resourceArmDateLakeAnalyticsCreate(d *schema.ResourceData, meta interface{}
 		CreateDataLakeAnalyticsAccountProperties: &account.CreateDataLakeAnalyticsAccountProperties{
 			DefaultDataLakeStoreAccount: utils.String(default_data_lake_store_account_name),
 			DataLakeStoreAccounts: expandAddDataLakeStoreAccounts(d),
-			StorageAccounts: expandAddStorageAccounts(d),
 			FirewallRules: expandCreateFirewallRules(d),
 			FirewallState: expandFirewallState(firewall_enabled),
 			FirewallAllowAzureIps: expandAllowIpState(firewall_allow_azure_ips),
@@ -240,7 +229,6 @@ func resourceArmDateLakeAnalyticsUpdate(d *schema.ResourceData, meta interface{}
 		Tags: expandTags(newTags),
 		UpdateDataLakeAnalyticsAccountProperties: &account.UpdateDataLakeAnalyticsAccountProperties{
 			DataLakeStoreAccounts: expandUpdateDataLakeStoreAccounts(d),
-			StorageAccounts: expandUpdateStorageAccounts(d),
 			FirewallRules: expandUpdateFirewallRules(d),
 			FirewallState: expandFirewallState(firewall_enabled),
 			FirewallAllowAzureIps: expandAllowIpState(firewall_allow_azure_ips),
@@ -296,11 +284,6 @@ func resourceArmDateLakeAnalyticsRead(d *schema.ResourceData, meta interface{}) 
 	if datalake_analytics_account_properties := resp.DataLakeAnalyticsAccountProperties; datalake_analytics_account_properties != nil {
 		d.Set("default_data_lake_store_account_name", datalake_analytics_account_properties.DefaultDataLakeStoreAccount)
 		d.Set("data_lake_store_accounts", flattenReadDataLakeStoreAccounts(datalake_analytics_account_properties.DataLakeStoreAccounts))
-
-		storage_accounts := flattenStorageAccounts(datalake_analytics_account_properties.StorageAccounts)
-		if err := d.Set("storage_account", storage_accounts); err != nil {
-			return fmt.Errorf("Error flattening `storage_account`: %s", err)
-		}
 
 		firewall_rules := flattenFirewallRules(datalake_analytics_account_properties.FirewallRules)
 		if err := d.Set("firewall_rule", firewall_rules); err != nil {
@@ -406,62 +389,6 @@ func flattenReadDataLakeStoreAccounts(input *[]account.DataLakeStoreAccountInfor
 	return results
 }
 
-func expandAddStorageAccounts(d *schema.ResourceData) *[]account.AddStorageAccountWithAccountParameters {
-	storageAccounts := d.Get("storage_account").([]interface{})
-	addStorageAccountWithAccountParameters := make([]account.AddStorageAccountWithAccountParameters, 0)
-
-	for _, storageAccount := range storageAccounts {
-		storage_account := storageAccount.(map[string]interface{})
-
-		name := storage_account["name"].(string)
-		access_key := storage_account["access_key"].(string)
-
-		addStorageAccountWithAccountParameters = append(addStorageAccountWithAccountParameters, account.AddStorageAccountWithAccountParameters{
-			Name: &name,
-			AddStorageAccountProperties: &account.AddStorageAccountProperties{
-				AccessKey: &access_key,
-			},
-		})
-	}
-
-	return &addStorageAccountWithAccountParameters
-}
-
-func expandUpdateStorageAccounts(d *schema.ResourceData) *[]account.UpdateStorageAccountWithAccountParameters {
-	storageAccounts := d.Get("storage_account").([]interface{})
-	updateStorageAccountWithAccountParameters := make([]account.UpdateStorageAccountWithAccountParameters, 0)
-
-	for _, storageAccount := range storageAccounts {
-		storage_account := storageAccount.(map[string]interface{})
-
-		name := storage_account["name"].(string)
-		access_key := storage_account["access_key"].(string)
-
-		updateStorageAccountWithAccountParameters = append(updateStorageAccountWithAccountParameters, account.UpdateStorageAccountWithAccountParameters{
-			Name: &name,
-			UpdateStorageAccountProperties: &account.UpdateStorageAccountProperties{
-				AccessKey: &access_key,
-			},
-		})
-	}
-
-	return &updateStorageAccountWithAccountParameters
-}
-
-func flattenStorageAccounts(input *[]account.StorageAccountInformation) interface{} {
-	results := make([]interface{}, 0)
-
-	if input != nil {
-		for _, v := range *input {
-			result := make(map[string]interface{}, 0)
-			result["name"] = *v.Name
-			results = append(results, result)
-		}
-	}
-
-	return results
-}
-
 func expandCreateFirewallRules(d *schema.ResourceData) *[]account.CreateFirewallRuleWithAccountParameters {
 	firewallRules := d.Get("firewall_rule").([]interface{})
 	createFirewallRuleWithAccountParameters := make([]account.CreateFirewallRuleWithAccountParameters, 0)
@@ -515,7 +442,7 @@ func flattenFirewallRules(input *[]account.FirewallRule) interface{} {
 	if input != nil {
 		for _, v := range *input {
 			result := make(map[string]interface{}, 0)
-			result["name"] = v.Name
+			result["name"] = *v.Name
 			result["start_ip_address"] = *v.StartIPAddress
 			result["end_ip_address"] = *v.EndIPAddress
 			results = append(results, result)

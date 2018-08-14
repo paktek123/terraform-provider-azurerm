@@ -26,6 +26,15 @@ func TestAccAzureRMDataLakeAnalytics_basic(t *testing.T) {
 				Check: resource.ComposeTestCheckFunc(
 					testCheckAzureRMDataLakeAnalyticsExists(resourceName),
 					resource.TestCheckResourceAttr(resourceName, "tier", "Consumption"),
+					resource.TestCheckResourceAttr(resourceName, "max_job_count", "1"),
+					resource.TestCheckResourceAttr(resourceName, "max_degree_of_parrallelism", "1"),
+					resource.TestCheckResourceAttr(resourceName, "max_degree_of_parrallelism_per_job", "1"),
+					resource.TestCheckResourceAttr(resourceName, "min_priority_per_job", "1"),
+					resource.TestCheckResourceAttr(resourceName, "query_retention", "30"),
+					resource.TestCheckResourceAttr(resourceName, "firewall_enabled", "false"),
+					resource.TestCheckResourceAttr(resourceName, "firewall_allow_azure_ips", "false"),
+					resource.TestCheckResourceAttr(resourceName, "default_data_lake_store_account_name", fmt.Sprintf("unlikely23exst2acct%s", rs)),
+					resource.TestCheckResourceAttr(resourceName, "data_lake_store_accounts.0", fmt.Sprintf("unlikely23exst2acct%s", rs)),
 				),
 			},
 			{
@@ -54,6 +63,16 @@ func TestAccAzureRMDataLakeAnalytics_multipleADLS(t *testing.T) {
 				Check: resource.ComposeTestCheckFunc(
 					testCheckAzureRMDataLakeAnalyticsExists(resourceName),
 					resource.TestCheckResourceAttr(resourceName, "tier", "Consumption"),
+					resource.TestCheckResourceAttr(resourceName, "max_job_count", "1"),
+					resource.TestCheckResourceAttr(resourceName, "max_degree_of_parrallelism", "1"),
+					resource.TestCheckResourceAttr(resourceName, "max_degree_of_parrallelism_per_job", "1"),
+					resource.TestCheckResourceAttr(resourceName, "min_priority_per_job", "1"),
+					resource.TestCheckResourceAttr(resourceName, "query_retention", "30"),
+					resource.TestCheckResourceAttr(resourceName, "firewall_enabled", "false"),
+					resource.TestCheckResourceAttr(resourceName, "firewall_allow_azure_ips", "false"),
+					resource.TestCheckResourceAttr(resourceName, "default_data_lake_store_account_name", fmt.Sprintf("unlikely23exst2acct%s", rsA)),
+					resource.TestCheckResourceAttr(resourceName, "data_lake_store_accounts.0", fmt.Sprintf("unlikely23exst2acct%s", rsB)),
+					resource.TestCheckResourceAttr(resourceName, "data_lake_store_accounts.1", fmt.Sprintf("unlikely23exst2acct%s", rsA)),
 				),
 			},
 			{
@@ -65,11 +84,11 @@ func TestAccAzureRMDataLakeAnalytics_multipleADLS(t *testing.T) {
 	})
 }
 
-func TestAccAzureRMDataLakeAnalytics_withStorageAccount(t *testing.T) {
+func TestAccAzureRMDataLakeAnalytics_withFirewallRule(t *testing.T) {
 	resourceName := "azurerm_data_lake_analytics.test"
 	ri := acctest.RandInt()
 	rs := acctest.RandString(4)
-	config := testAccAzureRMDataLakeAnalytics_withStorageAccount(ri, rs, testLocation())
+	config := testAccAzureRMDataLakeAnalytics_withFirewallRule(ri, rs, testLocation())
 
 	resource.Test(t, resource.TestCase{
 		PreCheck:     func() { testAccPreCheck(t) },
@@ -81,6 +100,18 @@ func TestAccAzureRMDataLakeAnalytics_withStorageAccount(t *testing.T) {
 				Check: resource.ComposeTestCheckFunc(
 					testCheckAzureRMDataLakeAnalyticsExists(resourceName),
 					resource.TestCheckResourceAttr(resourceName, "tier", "Consumption"),
+					resource.TestCheckResourceAttr(resourceName, "max_job_count", "1"),
+					resource.TestCheckResourceAttr(resourceName, "max_degree_of_parrallelism", "1"),
+					resource.TestCheckResourceAttr(resourceName, "max_degree_of_parrallelism_per_job", "1"),
+					resource.TestCheckResourceAttr(resourceName, "min_priority_per_job", "1"),
+					resource.TestCheckResourceAttr(resourceName, "query_retention", "30"),
+					resource.TestCheckResourceAttr(resourceName, "firewall_enabled", "true"),
+					resource.TestCheckResourceAttr(resourceName, "firewall_allow_azure_ips", "true"),
+					resource.TestCheckResourceAttr(resourceName, "firewall_rule.0.name", "accesseverywhere"),
+					resource.TestCheckResourceAttr(resourceName, "firewall_rule.0.start_ip_address", "0.0.0.0"),
+					resource.TestCheckResourceAttr(resourceName, "firewall_rule.0.end_ip_address", "255.255.255.255"),
+					resource.TestCheckResourceAttr(resourceName, "default_data_lake_store_account_name", fmt.Sprintf("unlikely23exst2acct%s", rs)),
+					resource.TestCheckResourceAttr(resourceName, "data_lake_store_accounts.0", fmt.Sprintf("unlikely23exst2acct%s", rs)),
 				),
 			},
 			{
@@ -201,7 +232,7 @@ resource "azurerm_data_lake_analytics" "test" {
 `, rInt, location, rsA, location, rsB, location, rsA, location)
 }
 
-func testAccAzureRMDataLakeAnalytics_withStorageAccount(rInt int, rs string, location string) string {
+func testAccAzureRMDataLakeAnalytics_withFirewallRule(rInt int, rs string, location string) string {
 	return fmt.Sprintf(`
 resource "azurerm_resource_group" "test" {
   name     = "acctestRG-%d"
@@ -214,25 +245,20 @@ resource "azurerm_data_lake_store" "test" {
   location            = "%s"
 }
 
-resource "azurerm_storage_account" "test" {
-  name                     = "unlikely23exst2acct%s"
-  resource_group_name      = "${azurerm_resource_group.test.name}"
-  location                 = "%s"
-  account_tier             = "Standard"
-  account_replication_type = "LRS"
-}
-
 resource "azurerm_data_lake_analytics" "test" {
   name                = "unlikely23exst2acct%s"
   resource_group_name = "${azurerm_resource_group.test.name}"
   location            = "%s"
   default_data_lake_store_account_name = "${azurerm_data_lake_store.test.name}"
   data_lake_store_accounts = ["${azurerm_data_lake_store.test.name}"]
+  firewall_enabled = true
+  firewall_allow_azure_ips = true
 
-  storage_account {
-  	name = "${azurerm_storage_account.test.name}"
-  	access_key = "${azurerm_storage_account.test.primary_access_key}"
+  firewall_rule {
+  	name = "accesseverywhere"
+  	start_ip_address = "0.0.0.0"
+  	end_ip_address = "255.255.255.255"
   }
 }
-`, rInt, location, rs, location, rs, location, rs, location)
+`, rInt, location, rs, location, rs, location)
 }
